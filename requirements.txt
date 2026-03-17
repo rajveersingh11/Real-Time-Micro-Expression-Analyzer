@@ -1,0 +1,26 @@
+# Core ML
+torch
+torchvision
+scikit-learn
+numpy
+pandas
+
+# Computer Vision
+opencv-python
+mediapipe
+pillow
+
+# Visualization
+matplotlib
+seaborn
+
+# Utilities
+tqdm
+pyyaml
+python-dotenv
+
+# Dataset downloading
+kaggle
+
+# Experiment tools
+jupyter

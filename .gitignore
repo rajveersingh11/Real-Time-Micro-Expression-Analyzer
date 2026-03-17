@@ -1,0 +1,22 @@
+# Virtual Environment
+.venv/
+__pycache__/
+*.pyc
+
+# Data & Models
+data/raw/
+data/processed/images/
+data/processed/landmark_sessions/*.npy
+models/*.task
+models/*.pt
+
+# Logs & Analytics
+logs/*.csv
+logs/*.png
+logs/*.txt
+logs/*.json
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
