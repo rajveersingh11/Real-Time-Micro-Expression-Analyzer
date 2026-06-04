@@ -12,7 +12,7 @@ This project is dedicated to professional machine learning workflows for analyzi
 
 ### 1. Clone the repository
 ```bash
-git clone <repo-url>
+git clone https://github.com/rajveersingh11/Real-Time-Micro-Expression-Analyzer.git
 cd AI-MicroExpression-Analyzer
 ```
 
