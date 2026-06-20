@@ -3,6 +3,10 @@ import pandas as pd
 from PIL import Image
 import torch
 from torch.utils.data import Dataset
+from src.utils.logger import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("emotion_dataset")
 
 class EmotionDataset(Dataset):
     """
@@ -31,7 +35,7 @@ class EmotionDataset(Dataset):
         
         # Verify and clean the dataset (optional: remove missing files now or handle in __getitem__)
         self.valid_indices = self._get_valid_indices()
-        print(f"Loaded {len(self.valid_indices)} valid samples from {csv_path} (out of {len(self.df)})")
+        logger.info(f"Loaded {len(self.valid_indices)} valid samples from {csv_path} (out of {len(self.df)})")
 
     def _get_valid_indices(self):
         """
@@ -65,8 +69,6 @@ class EmotionDataset(Dataset):
             return image, torch.tensor(label, dtype=torch.long)
             
         except (IOError, OSError) as e:
-            print(f"Error loading image {img_path}: {e}")
-            # In a real training scenario, you'd want to handle this more gracefully
-            # e.g., by returning a dummy image or choosing another index
-            # For now, we'll return a zero tensor if it fails (not ideal)
-            return torch.zeros((3, 224, 224)), torch.tensor(label, dtype=torch.long)
+            logger.error(f"Error loading image {img_path}: {e}")
+            # Raise exception to avoid silent data corruption/collation shape crashes
+            raise RuntimeError(f"Failed to load image at {img_path}: {e}") from e

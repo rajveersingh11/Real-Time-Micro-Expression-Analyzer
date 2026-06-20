@@ -7,7 +7,7 @@ def compute_metrics(y_true, y_pred):
         dict: A dictionary containing the metrics.
     """
     accuracy = accuracy_score(y_true, y_pred)
-    precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average='macro')
+    precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average='macro', zero_division=0)
     
     metrics = {
         "accuracy": float(accuracy),

@@ -1,17 +1,17 @@
 import torch
 import os
 import json
-import sys
 from tqdm import tqdm
-
-# Add project root to sys.path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.datasets.dataloader_builder import build_dataloaders
 from src.models.model_factory import build_model
 from src.evaluation.metrics import compute_metrics
 from src.evaluation.confusion_matrix_plot import plot_confusion_matrix
 from src.evaluation.classification_report import generate_classification_report
+from src.utils.logger import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("evaluator")
 
 def main():
     # Configuration
@@ -28,7 +28,7 @@ def main():
     labels = ["anger", "disgust", "fear", "happiness", "sadness", "surprise", "neutral"]
     
     # 1. Load Data
-    print("Loading test data...")
+    logger.info("Loading test data...")
     _, _, test_loader = build_dataloaders(
         batch_size=BATCH_SIZE,
         image_size=IMAGE_SIZE,
@@ -36,14 +36,14 @@ def main():
     )
     
     # 2. Build and Load Model
-    print(f"Loading model from {MODEL_PATH}...")
+    logger.info(f"Loading model from {MODEL_PATH}...")
     model = build_model(model_name="resnet18", num_classes=NUM_CLASSES, device=DEVICE)
     
     if os.path.exists(MODEL_PATH):
-        model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
-        print("Model state_dict loaded successfully.")
+        model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=True))
+        logger.info("Model state_dict loaded successfully.")
     else:
-        print(f"Warning: Model file {MODEL_PATH} not found. Using randomly initialized model for evaluation.")
+        logger.warning(f"Model file {MODEL_PATH} not found. Using randomly initialized model for evaluation.")
     
     model.eval()
     
@@ -51,7 +51,7 @@ def main():
     all_preds = []
     all_labels = []
     
-    print("Running inference on test set...")
+    logger.info("Running inference on test set...")
     with torch.no_grad():
         for images, labels_batch in tqdm(test_loader, desc="Evaluation"):
             images = images.to(DEVICE)
@@ -63,25 +63,25 @@ def main():
             all_labels.extend(labels_batch.cpu().numpy())
             
     # 4. Compute Metrics
-    print("Computing metrics...")
+    logger.info("Computing metrics...")
     metrics = compute_metrics(all_labels, all_preds)
-    print(f"Metrics: {metrics}")
+    logger.info(f"Metrics: {metrics}")
     
     # Save metrics to JSON
     metrics_path = os.path.join(LOG_DIR, "metrics.json")
-    with open(metrics_path, "w") as f:
+    with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=4)
-    print(f"Metrics saved to {metrics_path}")
+    logger.info(f"Metrics saved to {metrics_path}")
     
     # 5. Generate Confusion Matrix
-    print("Generating confusion matrix...")
+    logger.info("Generating confusion matrix...")
     plot_confusion_matrix(all_labels, all_preds, labels, output_path=os.path.join(LOG_DIR, "confusion_matrix.png"))
     
     # 6. Generate Classification Report
-    print("Generating classification report...")
+    logger.info("Generating classification report...")
     generate_classification_report(all_labels, all_preds, labels, output_path=os.path.join(LOG_DIR, "classification_report.txt"))
     
-    print("\nEvaluation complete.")
+    logger.info("Evaluation complete.")
 
 if __name__ == "__main__":
     main()

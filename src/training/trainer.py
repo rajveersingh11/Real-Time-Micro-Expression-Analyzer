@@ -2,6 +2,10 @@ import os
 import torch
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, f1_score
+from src.utils.logger import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("trainer")
 
 class Trainer:
     def __init__(self, model, train_loader, val_loader, optimizer, scheduler, loss_fn, device, save_dir="models"):
@@ -21,6 +25,10 @@ class Trainer:
         self.model.train()
         running_loss = 0.0
         
+        if len(self.train_loader) == 0:
+            logger.warning("Empty training loader.")
+            return 0.0
+            
         pbar = tqdm(self.train_loader, desc="Training")
         for images, labels in pbar:
             images, labels = images.to(self.device), labels.to(self.device)
@@ -29,6 +37,10 @@ class Trainer:
             outputs = self.model(images)
             loss = self.loss_fn(outputs, labels)
             loss.backward()
+            
+            # Gradient clipping to prevent exploding gradients
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            
             self.optimizer.step()
             
             running_loss += loss.item()
@@ -43,6 +55,10 @@ class Trainer:
         all_preds = []
         all_labels = []
         
+        if len(self.val_loader) == 0:
+            logger.warning("Empty validation loader.")
+            return 0.0, 0.0, 0.0
+            
         pbar = tqdm(self.val_loader, desc="Validation")
         for images, labels in pbar:
             images, labels = images.to(self.device), labels.to(self.device)
@@ -64,7 +80,7 @@ class Trainer:
 
     def fit(self, epochs):
         for epoch in range(1, epochs + 1):
-            print(f"\nEpoch {epoch}/{epochs}")
+            logger.info(f"Epoch {epoch}/{epochs}")
             
             train_loss = self.train_one_epoch()
             val_loss, val_acc, val_f1 = self.validate()
@@ -72,15 +88,27 @@ class Trainer:
             if self.scheduler:
                 self.scheduler.step()
                 
-            print(f"Train Loss: {train_loss:.4f}")
-            print(f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc*100:.2f}% | Val F1: {val_f1:.4f}")
+            logger.info(f"Train Loss: {train_loss:.4f}")
+            logger.info(f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc*100:.2f}% | Val F1: {val_f1:.4f}")
             
-            # Save last model
+            # Save checkpoints with optimizer and scheduler states
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': self.model.state_dict(),
+                'optimizer_state_dict': self.optimizer.state_dict(),
+                'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler else None,
+                'best_val_f1': self.best_val_f1,
+            }
+            torch.save(checkpoint, os.path.join(self.save_dir, "checkpoint.pt"))
+            
+            # Save last model (weights only for inference compatibility)
             torch.save(self.model.state_dict(), os.path.join(self.save_dir, "last_model.pt"))
             
             # Save best model based on F1 Score
             if val_f1 > self.best_val_f1:
                 self.best_val_f1 = val_f1
                 torch.save(self.model.state_dict(), os.path.join(self.save_dir, "best_model.pt"))
-                print(f"New best model saved with F1: {val_f1:.4f}")
+                # Also save the best checkpoint
+                torch.save(checkpoint, os.path.join(self.save_dir, "best_checkpoint.pt"))
+                logger.info(f"New best model saved with F1: {val_f1:.4f}")
 

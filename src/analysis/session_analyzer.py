@@ -1,25 +1,25 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-import sys
 import argparse
-
-# Add project root to sys.path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.inference.feature_engineering import FeatureEngineer
 from src.inference.stress_model import StressModel
 from src.utils.signal_processing import SignalSmoother
+from src.utils.logger import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("session_analyzer")
 
 def load_session(file_path):
     """Loads a .npy landmark session file."""
     if not os.path.exists(file_path):
-        print(f"Error: File {file_path} not found.")
+        logger.error(f"File {file_path} not found.")
         return None
     
     data = np.load(file_path)
-    print(f"Loaded session data from {file_path}")
-    print(f"Session shape: {data.shape} (Frames, Landmarks*3)")
+    logger.info(f"Loaded session data from {file_path}")
+    logger.info(f"Session shape: {data.shape} (Frames, Landmarks*3)")
     return data
 
 def vector_to_landmarks(vector):
@@ -46,7 +46,7 @@ def analyze_session(data):
     
     prev_landmarks = None
     
-    print(f"Analyzing {num_frames} frames...")
+    logger.info(f"Analyzing {num_frames} frames...")
     for i in range(num_frames):
         vector = data[i]
         landmarks = vector_to_landmarks(vector)

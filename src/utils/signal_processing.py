@@ -1,5 +1,10 @@
 import numpy as np
 from collections import deque
+from src.utils.exceptions import ConfigurationError
+from src.utils.logger import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("signal_processing")
 
 class SignalSmoother:
     """
@@ -7,6 +12,8 @@ class SignalSmoother:
     Uses Exponential Moving Average (EMA) and rolling window buffers.
     """
     def __init__(self, alpha=0.3, window_size=10):
+        if not (0.0 <= alpha <= 1.0):
+            raise ConfigurationError(f"alpha must be between 0.0 and 1.0, got {alpha}")
         self.alpha = alpha
         self.window_size = window_size
         
@@ -42,6 +49,14 @@ class SignalSmoother:
             self.buffers[feature_name].append(smoothed_value)
             
         return float(smoothed_value)
+
+    def get_history(self, feature_name):
+        """
+        Returns the rolling history buffer for a specific feature.
+        """
+        if feature_name in self.buffers:
+            return list(self.buffers[feature_name])
+        return []
 
     def smooth_features(self, features):
         """

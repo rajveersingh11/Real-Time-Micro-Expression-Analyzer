@@ -1,0 +1,10 @@
+# Dataset download configuration
+output_dir: "data/artifacts"
+
+datasets:
+  - id: "msambare/fer2013"
+    target_name: "fer2013"
+  - id: "shuvoalok/raf-db-dataset"
+    target_name: "raf-db"
+  - id: "davilsena/ckdataset"
+    target_name: "ckplus"

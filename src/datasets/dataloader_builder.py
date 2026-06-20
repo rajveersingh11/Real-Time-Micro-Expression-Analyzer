@@ -1,4 +1,5 @@
 import os
+import sys
 from torch.utils.data import DataLoader
 from .emotion_dataset import EmotionDataset
 from .transforms import get_train_transforms, get_val_test_transforms
@@ -8,12 +9,14 @@ def build_dataloaders(
     val_csv="data/splits/val.csv",
     test_csv="data/splits/test.csv",
     batch_size=64,
-    num_workers=4,
+    num_workers=None,
     image_size=224
 ):
     """
     Builds and returns DataLoaders for train, val, and test sets.
     """
+    if num_workers is None:
+        num_workers = 0 if sys.platform.startswith('win') else 4
     
     # 1. Initialize Datasets with appropriate transforms
     train_dataset = EmotionDataset(

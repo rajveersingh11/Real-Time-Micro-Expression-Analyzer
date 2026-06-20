@@ -2,11 +2,7 @@ import cv2
 import numpy as np
 import time
 import os
-import sys
 import argparse
-
-# Add project root to sys.path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.inference.face_landmark_detector import FaceLandmarkDetector
 from src.inference.feature_engineering import FeatureEngineer
@@ -15,6 +11,11 @@ from src.inference.dashboard import Dashboard
 from src.utils.data_logger import DataLogger
 from src.utils.signal_processing import SignalSmoother
 from src.utils.landmark_recorder import LandmarkRecorder
+from src.utils.logger import setup_logging, get_logger
+from src.utils.exceptions import CameraNotFoundError
+
+setup_logging()
+log = get_logger("realtime_analyzer")
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="AI Micro-Expression Analyzer - Real-Time Stress Detection")
@@ -30,7 +31,7 @@ def main():
     args = parse_arguments()
     
     # 1. Initialize System Components
-    print("Initializing components...")
+    log.info("Initializing components...")
     detector = FaceLandmarkDetector()
     feature_engineer = FeatureEngineer()
     stress_model = StressModel(window_size=15)
@@ -49,20 +50,32 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     
     if not cap.isOpened():
-        print(f"Error: Could not open webcam at index {args.camera_index}.")
-        return
+        raise CameraNotFoundError(f"Could not open webcam at index {args.camera_index}.")
 
-    print(f"Starting Analyzer (Display: {not args.no_display}, Verbose: {args.verbose}, Record: {args.record_landmarks})...")
-    print("Press 'q' in the window (if active) or Ctrl+C in terminal to quit.")
+    log.info(f"Starting Analyzer (Display: {not args.no_display}, Verbose: {args.verbose}, Record: {args.record_landmarks})...")
+    log.info("Press 'q' in the window (if active) or Ctrl+C in terminal to quit.")
     
     start_time = time.time()
     prev_landmarks = None
+    
+    # FPS Tracking
+    fps_start_time = time.time()
+    fps_counter = 0
+    fps = 0.0
     
     try:
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
+                
+            # Calculate FPS
+            fps_counter += 1
+            elapsed = time.time() - fps_start_time
+            if elapsed >= 1.0:
+                fps = fps_counter / elapsed
+                fps_counter = 0
+                fps_start_time = time.time()
                 
             # Flip frame for mirror effect
             frame = cv2.flip(frame, 1)
@@ -98,13 +111,13 @@ def main():
                 
                 # Verbose output
                 if args.verbose:
-                    print("-" * 30)
+                    log.info("-" * 30)
                     for k in features.keys():
                         raw_val = raw_features.get(k, 0.0)
                         smooth_val = features.get(k, 0.0)
-                        print(f"{k.replace('_', ' ').title()}: Raw={raw_val:.3f}, Smooth={smooth_val:.3f}")
-                    print(f"Stress Score: {stress_info['stress_score']:.2f}")
-                    print(f"Level: {stress_info['stress_level']}")
+                        log.info(f"{k.replace('_', ' ').title()}: Raw={raw_val:.3f}, Smooth={smooth_val:.3f}")
+                    log.info(f"Stress Score: {stress_info['stress_score']:.2f}")
+                    log.info(f"Level: {stress_info['stress_level']}")
                 
                 # Optional: Draw landmarks on the camera frame before dashboarding
                 if not args.no_display:
@@ -115,6 +128,8 @@ def main():
                 
             # 4. Render and Display
             if not args.no_display:
+                # Put FPS text on the frame
+                cv2.putText(frame, f"FPS: {fps:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                 display_frame = dashboard.render(frame, features, stress_info)
                 cv2.imshow("AI Micro Expression Analyzer - Stress Detector", display_frame)
                 
@@ -125,18 +140,22 @@ def main():
                 time.sleep(0.01)
                 
     except KeyboardInterrupt:
-        print("\nInterrupted by user.")
+        log.info("Interrupted by user.")
             
     # 5. Cleanup
     cap.release()
+    detector.close()
     if not args.no_display:
         cv2.destroyAllWindows()
+        
+    # Explicitly close logging session
+    logger.close_session()
         
     # Save landmark recording session if enabled
     if recorder:
         recorder.save_session()
         
-    print("Analyzer closed.")
+    log.info("Analyzer closed.")
 
 if __name__ == "__main__":
     main()

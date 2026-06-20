@@ -1,14 +1,13 @@
+UNIFIED_LABELS = [
+    "anger", "disgust", "fear", "happiness", "sadness", "surprise", "neutral"
+]
+
 def map_label(dataset_name, raw_label):
     """
     Maps raw dataset labels to a unified label space:
     anger, disgust, fear, happiness, sadness, surprise, neutral
     """
     dataset_name = dataset_name.lower()
-    
-    # Unified label space
-    unified_labels = [
-        "anger", "disgust", "fear", "happiness", "sadness", "surprise", "neutral"
-    ]
 
     if dataset_name == "fer2013":
         # FER2013 raw labels (often 0-6 or folder names)

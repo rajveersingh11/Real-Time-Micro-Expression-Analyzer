@@ -1,0 +1,42 @@
+# Configuration for Real-Time Micro-Expression Analyzer
+
+model:
+  architecture: "resnet18"   # Options: resnet18, efficientnet_b0, mobilenet_v3_small, mobilenet_v3_large
+  num_classes: 7
+  checkpoint: "models/best_model.pt"
+  dropout: 0.5
+  freeze_backbone: true       # Freeze pre-trained backbone layers
+
+inference:
+  camera_index: 0
+  smoothing_alpha: 0.3
+  confidence_threshold: 0.5
+  max_faces: 5
+
+stress:
+  weights:
+    eyebrow_raise: 0.20
+    lip_tension: 0.30
+    blink_intensity: 0.20
+    head_nod: 0.15
+    facial_symmetry: 0.15
+  thresholds: [0.35, 0.65]
+
+training:
+  epochs: 5
+  batch_size: 64
+  learning_rate: 0.001
+  seed: 42
+  optimizer: "adamw"          # Options: adam, adamw, sgd
+  weight_decay: 1e-4
+  scheduler: "cosine"         # Options: cosine, step, plateau, none
+  label_smoothing: 0.1
+  augmentation:
+    horizontal_flip: true
+    rotation_degree: 10
+    brightness_jitter: 0.2
+    contrast_jitter: 0.2
+    saturation_jitter: 0.2
+
+logging:
+  level: "INFO"

@@ -3,6 +3,11 @@ import mediapipe as mp
 import numpy as np
 import os
 import urllib.request
+from src.utils.logger import setup_logging, get_logger
+from src.utils.exceptions import ModelLoadError
+
+setup_logging()
+logger = get_logger("face_landmark_detector")
 
 class FaceLandmarkDetector:
     """
@@ -36,27 +41,65 @@ class FaceLandmarkDetector:
             output_facial_transformation_matrixes=True
         )
         
-        self.landmarker = FaceLandmarker.create_from_options(options)
-        self.mp_drawing = mp.tasks.vision.drawing_utils
-        self.mp_drawing_styles = mp.tasks.vision.drawing_styles
+        try:
+            self.landmarker = FaceLandmarker.create_from_options(options)
+        except Exception as e:
+            raise ModelLoadError(f"Failed to initialize MediaPipe FaceLandmarker: {e}") from e
 
     def _ensure_model_exists(self):
-        """Downloads the model if it's missing."""
-        if not os.path.exists(self.model_path):
-            os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
-            print(f"Model not found at {self.model_path}. Downloading...")
-            url = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
-            urllib.request.urlretrieve(url, self.model_path)
-            print("Download complete.")
+        """Downloads the model with timeout and retry logic if missing."""
+        if os.path.exists(self.model_path) and os.path.getsize(self.model_path) > 0:
+            return
+            
+        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
+        url = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+        logger.info(f"Model not found at {self.model_path}. Downloading from {url}...")
+        
+        max_retries = 3
+        timeout = 15
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                with urllib.request.urlopen(url, timeout=timeout) as response, open(self.model_path, 'wb') as out_file:
+                    out_file.write(response.read())
+                logger.info("Download complete.")
+                return
+            except Exception as e:
+                logger.warning(f"Download attempt {attempt} failed: {e}")
+                if attempt == max_retries:
+                    if os.path.exists(self.model_path):
+                        os.remove(self.model_path)
+                    raise ModelLoadError(f"Failed to download MediaPipe model after {max_retries} attempts: {e}") from e
 
-    def extract_landmarks(self, frame, timestamp_ms):
+    def close(self):
+        """Clean up the landmarker resources."""
+        self._close_internal(log=True)
+
+    def _close_internal(self, log=True):
+        if hasattr(self, 'landmarker') and self.landmarker is not None:
+            try:
+                self.landmarker.close()
+                if log:
+                    logger.info("FaceLandmarker closed successfully.")
+            except Exception as e:
+                if log:
+                    logger.error(f"Error closing FaceLandmarker: {e}")
+            finally:
+                self.landmarker = None
+
+    def __del__(self):
+        self._close_internal(log=False)
+
+    def extract_landmarks(self, frame, timestamp_ms, return_multi=False):
         """
-        Detects facial landmarks and returns them as a NumPy array.
+        Detects facial landmarks and returns them as a NumPy array or list of arrays.
         Args:
             frame: OpenCV BGR image.
             timestamp_ms: Current timestamp in milliseconds.
+            return_multi: If True, returns a list of NumPy arrays (one per detected face).
+                          If False, returns a single NumPy array for the first face.
         Returns:
-            np.ndarray: Array of shape (478, 3) or None if no face detected.
+            np.ndarray or list: Array of shape (478, 3) or list of such arrays (or None).
             result: MediaPipe FaceLandmarkerResult object.
         """
         # Convert BGR to RGB and then to MediaPipe Image
@@ -69,15 +112,21 @@ class FaceLandmarkDetector:
         if not result.face_landmarks:
             return None, result
         
-        # Extract the first face's landmarks
-        face_landmarks = result.face_landmarks[0]
-        
-        # Convert to NumPy array (478 landmarks)
-        landmarks = np.array([
-            [lm.x, lm.y, lm.z] for lm in face_landmarks
-        ])
-        
-        return landmarks, result
+        if return_multi:
+            all_faces = []
+            for face_landmarks in result.face_landmarks:
+                landmarks = np.array([
+                    [lm.x, lm.y, lm.z] for lm in face_landmarks
+                ])
+                all_faces.append(landmarks)
+            return all_faces, result
+        else:
+            # Extract the first face's landmarks
+            face_landmarks = result.face_landmarks[0]
+            landmarks = np.array([
+                [lm.x, lm.y, lm.z] for lm in face_landmarks
+            ])
+            return landmarks, result
 
     def landmarks_to_vector(self, landmarks):
         """Flattens landmarks into a feature vector."""

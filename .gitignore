@@ -7,16 +7,26 @@ __pycache__/
 data/raw/
 data/processed/images/
 data/processed/landmark_sessions/*.npy
+data/artifacts/
 models/*.task
 models/*.pt
 
 # Logs & Analytics
-logs/*.csv
-logs/*.png
-logs/*.txt
-logs/*.json
+logs/
+*.log
 
 # IDEs
 .vscode/
 .idea/
 .DS_Store
+
+# Environment & Private files
+.env
+.env.*
+
+# Python packaging & builds
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/

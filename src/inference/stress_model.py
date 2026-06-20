@@ -1,19 +1,41 @@
 import numpy as np
 from collections import deque
+from src.utils.config import load_config
+from src.utils.logger import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("stress_model")
 
 class StressModel:
     """
     Estimates stress levels by fusing facial behavior features.
     Provides temporal smoothing and categorical classification.
     """
-    def __init__(self, window_size=10):
-        # Weights for feature fusion
+    def __init__(self, window_size=10, smooth_score_enabled=False):
+        # Load weights and thresholds from config or use default fallback
+        try:
+            config = load_config()
+            weights = config["stress"]["weights"]
+            self.thresholds = config["stress"]["thresholds"]
+            self.smooth_score_enabled = config["stress"].get("smooth_score", smooth_score_enabled)
+        except Exception as e:
+            logger.warning(f"Failed to load stress config, using defaults: {e}")
+            weights = {
+                "eyebrow_raise": 0.20,
+                "lip_tension": 0.30,
+                "blink_intensity": 0.20,
+                "head_nod": 0.15,
+                "facial_symmetry": 0.15
+            }
+            self.thresholds = [0.35, 0.65]
+            self.smooth_score_enabled = smooth_score_enabled
+
         self.weights = {
-            "eyebrow_raise": 0.20,
-            "lip_tension": 0.30,
-            "blink_intensity": 0.20, # Mapping blink_rate to the key used in feature_engineering.py
-            "head_nod": 0.15,
-            "symmetry_delta": 0.15   # Mapping symmetry to the key used in feature_engineering.py
+            "eyebrow_raise": weights.get("eyebrow_raise", 0.20),
+            "lip_tension": weights.get("lip_tension", 0.30),
+            "blink_intensity": weights.get("blink_intensity", 0.20),
+            "head_nod": weights.get("head_nod", 0.15),
+            "symmetry_delta": weights.get("symmetry_delta", weights.get("facial_symmetry", 0.15))
         }
         
         # Temporal smoothing buffer
@@ -52,31 +74,36 @@ class StressModel:
         """
         Classifies the stress score into a categorical level.
         Args:
-            score (float): Smoothed stress score.
+            score (float): Stress score.
         Returns:
             str: Stress level classification ('Calm', 'Slight Stress', 'High Stress').
         """
-        if score < 0.35:
+        if score < self.thresholds[0]:
             return "Calm"
-        elif score < 0.65:
+        elif score < self.thresholds[1]:
             return "Slight Stress"
         else:
             return "High Stress"
 
     def predict(self, features):
         """
-        Full prediction pipeline: compute -> smooth -> classify.
+        Full prediction pipeline: compute -> optionally smooth -> classify.
         Args:
             features (dict): Dictionary of facial features.
         Returns:
             dict: Dictionary containing score and level.
         """
         raw_score = self.compute_score(features)
-        smoothed_score = self.smooth_score(raw_score)
-        level = self.classify_stress(smoothed_score)
+        
+        if self.smooth_score_enabled:
+            final_score = self.smooth_score(raw_score)
+        else:
+            final_score = raw_score
+            
+        level = self.classify_stress(final_score)
         
         return {
-            "stress_score": round(smoothed_score, 4),
+            "stress_score": round(final_score, 4),
             "stress_level": level
         }
 

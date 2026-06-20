@@ -2,6 +2,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import confusion_matrix
 import os
+from src.utils.logger import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("confusion_matrix_plot")
 
 def plot_confusion_matrix(y_true, y_pred, labels, output_path="logs/confusion_matrix.png"):
     """
@@ -25,4 +29,4 @@ def plot_confusion_matrix(y_true, y_pred, labels, output_path="logs/confusion_ma
     
     plt.savefig(output_path)
     plt.close()
-    print(f"Confusion matrix saved to {output_path}")
+    logger.info(f"Confusion matrix saved to {output_path}")

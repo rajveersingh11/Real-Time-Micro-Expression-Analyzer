@@ -1,6 +1,10 @@
 import csv
 import os
 from datetime import datetime
+from src.utils.logger import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("data_logger")
 
 class DataLogger:
     """
@@ -10,6 +14,8 @@ class DataLogger:
     def __init__(self, log_dir="logs"):
         self.log_dir = log_dir
         self.file_path = None
+        self.file_handle = None
+        self.writer = None
         self.fieldnames = [
             "timestamp",
             "eyebrow_raise",
@@ -25,16 +31,22 @@ class DataLogger:
         os.makedirs(self.log_dir, exist_ok=True)
 
     def start_session(self):
-        """Creates a new CSV file with a timestamped name and writes the header."""
+        """Creates a new CSV file with a timestamped name, writes the header, and keeps it open."""
         timestamp_str = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
         filename = f"session_{timestamp_str}.csv"
         self.file_path = os.path.join(self.log_dir, filename)
         
-        with open(self.file_path, mode='w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=self.fieldnames)
-            writer.writeheader()
+        try:
+            self.file_handle = open(self.file_path, mode='w', newline='', encoding='utf-8')
+            self.writer = csv.DictWriter(self.file_handle, fieldnames=self.fieldnames)
+            self.writer.writeheader()
+            self.file_handle.flush()
+            logger.info(f"Session logging started: {self.file_path}")
+        except Exception as e:
+            logger.error(f"Failed to open session log file {self.file_path}: {e}")
+            self.file_handle = None
+            self.writer = None
             
-        print(f"Session logging started: {self.file_path}")
         return self.file_path
 
     def log_frame(self, features, stress_result):
@@ -44,7 +56,7 @@ class DataLogger:
             features (dict): Facial features from FeatureEngineer.
             stress_result (dict): Stress scores from StressModel.
         """
-        if self.file_path is None or not features or not stress_result:
+        if self.file_path is None or self.file_handle is None or self.writer is None or not features or not stress_result:
             return
 
         row = {
@@ -58,7 +70,28 @@ class DataLogger:
             "stress_level": stress_result.get('stress_level', 'Unknown')
         }
 
-        # Append to CSV
-        with open(self.file_path, mode='a', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=self.fieldnames)
-            writer.writerow(row)
+        try:
+            self.writer.writerow(row)
+            self.file_handle.flush()
+        except Exception as e:
+            logger.error(f"Failed to write log row: {e}")
+
+    def close_session(self):
+        """Closes the CSV log file handle."""
+        self._close_session_internal(log=True)
+
+    def _close_session_internal(self, log=True):
+        if hasattr(self, 'file_handle') and self.file_handle is not None:
+            try:
+                self.file_handle.close()
+                if log:
+                    logger.info("Session log file closed successfully.")
+            except Exception as e:
+                if log:
+                    logger.error(f"Error closing session log file: {e}")
+            finally:
+                self.file_handle = None
+                self.writer = None
+
+    def __del__(self):
+        self._close_session_internal(log=False)

@@ -4,8 +4,12 @@ import numpy as np
 import cv2
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
-from label_mapper import map_label
-from image_preprocessor import preprocess_image
+from src.preprocessing.label_mapper import map_label
+from src.preprocessing.image_preprocessor import preprocess_image
+from src.utils.logger import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("dataset_unifier")
 
 def process_fer2013(raw_dir, processed_images_dir):
     data = []
@@ -15,7 +19,7 @@ def process_fer2013(raw_dir, processed_images_dir):
         if not os.path.exists(split_dir):
             continue
             
-        print(f"Processing FER2013 {split} split...")
+        logger.info(f"Processing FER2013 {split} split...")
         for label_folder in os.listdir(split_dir):
             unified_label = map_label("fer2013", label_folder)
             if not unified_label:
@@ -44,7 +48,7 @@ def process_raf_db(raw_dir, processed_images_dir):
         if not os.path.exists(csv_path):
             continue
             
-        print(f"Processing RAF-DB {split} split...")
+        logger.info(f"Processing RAF-DB {split} split...")
         df = pd.read_csv(csv_path)
         img_dir = os.path.join(raf_dir, "DATASET", split)
         
@@ -74,7 +78,7 @@ def process_ckplus(raw_dir, processed_images_dir):
     if not os.path.exists(csv_path):
         return data
         
-    print("Processing CK+ (from CSV pixels)...")
+    logger.info("Processing CK+ (from CSV pixels)...")
     df = pd.read_csv(csv_path)
     
     for i, row in tqdm(df.iterrows(), total=len(df), desc="CK+"):
@@ -104,7 +108,18 @@ def process_ckplus(raw_dir, processed_images_dir):
     return data
 
 def main():
-    raw_dir = "data/raw"
+    import yaml
+    # Load download directory config from config.yaml if it exists
+    raw_dir = "data/artifacts"
+    config_path = os.path.join("config", "config.yaml")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+                raw_dir = config.get("output_dir", raw_dir)
+        except Exception as e:
+            logger.warning(f"Could not load config.yaml in unifier: {e}")
+            
     processed_dir = "data/processed"
     images_dir = os.path.join(processed_dir, "images")
     splits_dir = "data/splits"
@@ -120,14 +135,14 @@ def main():
     all_data.extend(process_ckplus(raw_dir, images_dir))
     
     if not all_data:
-        print("No data processed. Please check raw data directories.")
+        logger.warning("No data processed. Please check raw data directories.")
         return
         
     full_df = pd.DataFrame(all_data)
     
     # Save unified metadata
     full_df.to_csv(os.path.join(processed_dir, "unified_metadata.csv"), index=False)
-    print(f"Total images processed: {len(full_df)}")
+    logger.info(f"Total images processed: {len(full_df)}")
     
     # Create splits (70/15/15)
     train_df, temp_df = train_test_split(
@@ -142,8 +157,8 @@ def main():
     val_df.to_csv(os.path.join(splits_dir, "val.csv"), index=False)
     test_df.to_csv(os.path.join(splits_dir, "test.csv"), index=False)
     
-    print(f"Splits created: Train({len(train_df)}), Val({len(val_df)}), Test({len(test_df)})")
-    print("Preprocessing pipeline complete.")
+    logger.info(f"Splits created: Train({len(train_df)}), Val({len(val_df)}), Test({len(test_df)})")
+    logger.info("Preprocessing pipeline complete.")
 
 if __name__ == "__main__":
     main()
